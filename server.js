@@ -123,6 +123,8 @@ app.post("/add-route", urlencodedParser, async function (request, response) {
       SELECT
         routes.id AS route_id,
         routes.name AS route_name,
+        routes.price AS route_price,
+        routes.currency AS route_currency,
         routes.description AS route_description,
         stops.id AS stop_id,
         stops.title AS stop_title,
