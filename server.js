@@ -6,7 +6,10 @@ const mysqlPromise = require('mysql2/promise');
 const cors = require('cors');
 const {formattedRouteWithStops} = require('./routes');
 const urlencodedParser = express.urlencoded({extended: false});
+const multer = require('multer');
+const mime = require('mime-types');
 
+app.use(express.urlencoded({ extended: true }))
 app.use(express.json());
 
 app.use(cors({
@@ -20,6 +23,9 @@ const db = mysql.createConnection({
   password: 'Zoria2608!',
   database: 'mydatabase'
 });
+
+const storage = multer.memoryStorage(); // Хранение файлов в памяти
+const upload = multer({ storage: storage });
 
 const pool = mysqlPromise.createPool({
   host: 'localhost',
@@ -39,19 +45,42 @@ db.connect((err) => {
   }
 });
 
-app.get('/users', (req, res) => {
+app.get('/users', (request, response) => {
   const query = 'SELECT * FROM users';
 
   db.query(query, (err, results) => {
     if (err) {
-      return res.status(500).send('Ошибка при получении данных');
+      return response.status(500).send('Ошибка при получении данных');
     }
-    res.json(results);
+
+    response.json(results);
   });
 });
 
-app.get('/routes', (req, response) => {
-  const ownerId = req.query.id;
+app.get('/route-image/:id', (request, response) => {
+  const query = `
+    SELECT 
+        route_images.image_blob AS blobb,
+        route_images.title AS title
+    FROM route_images
+    WHERE route_images.route_id = ${request.params.id}`;
+
+  db.query(query, (err, results) => {
+    if (err) {
+      return response.status(500).send(`Ошибка при получении данных ${err}`);
+    }
+
+    if (!results.length) {
+      return response.status(404).send('Не найдено');
+    }
+
+    response.writeHead(200, { 'Content-Type': mime.lookup(results[0].title)} );
+    response.end(results[0].blobb);
+  })
+});
+
+app.get('/routes', (request, response) => {
+  const ownerId = request.query.id;
 
   const query = `
     SELECT
@@ -83,12 +112,14 @@ app.get('/routes', (req, response) => {
   });
 });
 
-app.post("/add-route", urlencodedParser, async function (request, response) {
+app.post("/add-route", upload.array('images', 5), async function (request, response) {
   if(!request.body) {
     return response.sendStatus(400);
   }
 
-  const {userId, route} = request.body;
+  const {userId, routeData: routeDataRaw} = request.body;
+  const routeData = JSON.parse(routeDataRaw);
+  const imagesData = request.files ? request.files.map(file => [file.buffer, file.originalname]) : [];
 
   if (Object.keys(request.body).length === 0) {
     return response.status(400).json({ error: 'Маршрут и остановки обязательны' });
@@ -101,12 +132,21 @@ app.post("/add-route", urlencodedParser, async function (request, response) {
 
     const [routeResult] = await connection.query(
       'INSERT INTO routes (name, description, user_id) VALUES (?, ?, ?)',
-      [route.name, route.description, userId]
+      [routeData.name, routeData.description, userId]
     );
 
     const routeId = routeResult.insertId;
+    // Вставка путей изображений в таблицу images (или можно использовать JSON для хранения в routes)
+    const imagesPromises = imagesData.map(([imageBuffer, imageName]) => {
+      return connection.query(
+        'INSERT INTO route_images (route_id, image_blob, title) VALUES (?, ?, ?)',
+        [routeId, imageBuffer, imageName]
+      );
+    });
 
-    const stopPromises = route.stops.map(stop => {
+    await Promise.all(imagesPromises);
+
+    const stopPromises = routeData.stops.map(stop => {
       const { title, description, position } = stop;
 
       return connection.query(
@@ -120,24 +160,36 @@ app.post("/add-route", urlencodedParser, async function (request, response) {
     await connection.commit();
 
     const [stopsWithRoute] = await connection.query(`
-      SELECT
-        routes.id AS route_id,
-        routes.name AS route_name,
-        routes.price AS route_price,
-        routes.currency AS route_currency,
-        routes.description AS route_description,
-        stops.id AS stop_id,
-        stops.title AS stop_title,
-        stops.description AS stop_description,
-        stops.position AS stop_position
-      FROM
-        routes
-      LEFT JOIN
-        stops ON routes.id = stops.route_id
-      WHERE
-        routes.id = ?`,
+                SELECT
+                    routes.id AS route_id,
+                    routes.name AS route_name,
+                    routes.price AS route_price,
+                    routes.currency AS route_currency,
+                    routes.description AS route_description,
+                    stops.id AS stop_id,
+                    stops.title AS stop_title,
+                    stops.description AS stop_description,
+                    stops.position AS stop_position
+                FROM
+                    routes
+                        LEFT JOIN
+                    stops ON routes.id = stops.route_id
+                WHERE
+                    routes.id = ?`,
       [routeId]
     );
+
+    const [images] = await connection.query(`
+      SELECT route_images.id AS id
+      FROM route_images
+      WHERE
+        route_images.route_id = ?`,
+      [routeId]
+    );
+
+    stopsWithRoute.forEach(data => {
+      data.images = images;
+    })
 
     const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute);
 

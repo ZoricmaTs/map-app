@@ -9,7 +9,8 @@ function formattedRouteWithStops(stops) {
         description: row.route_description,
         price: row.route_price,
         currency: row.route_currency,
-        stops: []
+        images: row.images,
+        stops: [],
       };
     }
     acc[routeId].stops.push({
