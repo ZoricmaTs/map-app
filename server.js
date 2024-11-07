@@ -57,13 +57,13 @@ app.get('/users', (request, response) => {
   });
 });
 
-app.get('/route-image/:id', (request, response) => {
+app.get('/images/:id', (request, response) => {
   const query = `
     SELECT 
-        route_images.image_blob AS blobb,
-        route_images.title AS title
-    FROM route_images
-    WHERE route_images.route_id = ${request.params.id}`;
+      images.image_blob AS imageBlob,
+      images.title AS title
+    FROM images
+    WHERE images.id = ${request.params.id}`;
 
   db.query(query, (err, results) => {
     if (err) {
@@ -75,7 +75,7 @@ app.get('/route-image/:id', (request, response) => {
     }
 
     response.writeHead(200, { 'Content-Type': mime.lookup(results[0].title)} );
-    response.end(results[0].blobb);
+    response.end(results[0].imageBlob);
   })
 });
 
@@ -136,15 +136,25 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
     );
 
     const routeId = routeResult.insertId;
-    // Вставка путей изображений в таблицу images (или можно использовать JSON для хранения в routes)
+
     const imagesPromises = imagesData.map(([imageBuffer, imageName]) => {
       return connection.query(
-        'INSERT INTO route_images (route_id, image_blob, title) VALUES (?, ?, ?)',
-        [routeId, imageBuffer, imageName]
+        'INSERT INTO images (title, image_blob) VALUES (?, ?)',
+        [imageName, imageBuffer]
       );
     });
 
-    await Promise.all(imagesPromises);
+    const imagesResult = await Promise.all(imagesPromises);
+
+    const imagesRouteRelationsPromises = imagesResult.map((imageResult) => {
+      const imageId = imageResult[0].insertId;
+      return connection.query(
+        'INSERT INTO route_images (route_id, image_id) VALUES (?, ?)',
+        [routeId, imageId]
+      );
+    });
+
+    await Promise.all(imagesRouteRelationsPromises);
 
     const stopPromises = routeData.stops.map(stop => {
       const { title, description, position } = stop;
@@ -160,27 +170,27 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
     await connection.commit();
 
     const [stopsWithRoute] = await connection.query(`
-                SELECT
-                    routes.id AS route_id,
-                    routes.name AS route_name,
-                    routes.price AS route_price,
-                    routes.currency AS route_currency,
-                    routes.description AS route_description,
-                    stops.id AS stop_id,
-                    stops.title AS stop_title,
-                    stops.description AS stop_description,
-                    stops.position AS stop_position
-                FROM
-                    routes
-                        LEFT JOIN
-                    stops ON routes.id = stops.route_id
-                WHERE
-                    routes.id = ?`,
+      SELECT
+        routes.id AS route_id,
+        routes.name AS route_name,
+        routes.price AS route_price,
+        routes.currency AS route_currency,
+        routes.description AS route_description,
+        stops.id AS stop_id,
+        stops.title AS stop_title,
+        stops.description AS stop_description,
+        stops.position AS stop_position
+      FROM
+        routes
+      LEFT JOIN
+        stops ON routes.id = stops.route_id
+      WHERE
+        routes.id = ?`,
       [routeId]
     );
 
     const [images] = await connection.query(`
-      SELECT route_images.id AS id
+      SELECT route_images.image_id AS id
       FROM route_images
       WHERE
         route_images.route_id = ?`,
