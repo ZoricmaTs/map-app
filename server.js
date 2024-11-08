@@ -79,8 +79,67 @@ app.get('/images/:id', (request, response) => {
   })
 });
 
+app.get('/route', async (request, response) => {
+  const routeId = request.query.id;
+
+
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    await connection.beginTransaction();
+
+  const [stopsWithRoute] = await connection.query(`
+    SELECT
+      routes.id AS route_id,
+      routes.name AS route_name,
+      routes.description AS route_description,
+      routes.price AS route_price,
+      routes.currency AS route_currency,
+      stops.id AS stop_id,
+      stops.title AS stop_title,
+      stops.description AS stop_description,
+      stops.position AS stop_position
+    FROM 
+      routes
+    JOIN
+      stops ON routes.id = stops.route_id
+    WHERE 
+      routes.id = ?;`, [routeId]);
+
+    if (stopsWithRoute.length === 0) {
+      response.status(404).send('Маршрут не найден');
+    }
+
+    const [images] = await connection.query(`
+      SELECT 
+        route_images.image_id AS id
+      FROM 
+        route_images
+      WHERE
+        route_images.route_id = ?`,
+      [routeId]
+    );
+
+    stopsWithRoute.forEach(data => {
+      data.images = images;
+    })
+
+    const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute)[0];
+
+    response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
+  } catch (err) {
+    console.error('Ошибка выполнения запроса:', err);
+    response.status(500).send('Ошибка сервера');
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
 app.get('/routes', (request, response) => {
-  const ownerId = request.query.id;
+  const ownerId = request.query.user_id;
 
   const query = `
     SELECT
@@ -92,7 +151,6 @@ app.get('/routes', (request, response) => {
       stops.id AS stop_id,
       stops.title AS stop_title,
       stops.description AS stop_description,
-      stops.image AS stop_image,
       stops.position AS stop_position
     FROM 
       routes
@@ -108,7 +166,7 @@ app.get('/routes', (request, response) => {
 
     const routesWithStops = formattedRouteWithStops(results);
 
-    response.json(Object.values(routesWithStops));
+    response.json(routesWithStops);
   });
 });
 
@@ -125,9 +183,11 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
     return response.status(400).json({ error: 'Маршрут и остановки обязательны' });
   }
 
-  const connection = await pool.getConnection();
+  let connection;
 
   try {
+    connection = await pool.getConnection();
+
     await connection.beginTransaction();
 
     const [routeResult] = await connection.query(
@@ -201,7 +261,7 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
       data.images = images;
     })
 
-    const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute);
+    const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute)[0];
 
     response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
 
@@ -212,7 +272,9 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
 
     response.status(500).json({ error: 'Ошибка сервера при добавлении маршрута и остановок' });
   } finally {
-    connection.release();
+    if (connection) {
+      connection.release();
+    }
   }
 });
 

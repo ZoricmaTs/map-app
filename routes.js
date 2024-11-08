@@ -1,5 +1,4 @@
 function formattedRouteWithStops(stops) {
-  console.log('stops', stops)
   const route = stops.reduce((acc, row) => {
     const routeId = row.route_id;
     if (!acc[routeId]) {
@@ -23,7 +22,7 @@ function formattedRouteWithStops(stops) {
     return acc;
   }, {});
 
-  return route;
+  return Object.values(route);
 }
 
 module.exports = {formattedRouteWithStops};
