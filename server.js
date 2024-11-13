@@ -191,8 +191,8 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
     await connection.beginTransaction();
 
     const [routeResult] = await connection.query(
-      'INSERT INTO routes (name, description, user_id) VALUES (?, ?, ?)',
-      [routeData.name, routeData.description, userId]
+      'INSERT INTO routes (name, description, price, currency, user_id) VALUES (?, ?, ?, ?, ?)',
+      [routeData.name, routeData.description, routeData.price, routeData.currency, userId]
     );
 
     const routeId = routeResult.insertId;
