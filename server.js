@@ -82,8 +82,8 @@ app.get('/images/:id', (request, response) => {
 app.get('/route', async (request, response) => {
   const routeId = request.query.id;
 
-
   let connection;
+
   try {
     connection = await pool.getConnection();
 
@@ -105,11 +105,8 @@ app.get('/route', async (request, response) => {
     JOIN
       stops ON routes.id = stops.route_id
     WHERE 
-      routes.id = ?;`, [routeId]);
-
-    if (stopsWithRoute.length === 0) {
-      response.status(404).send('Маршрут не найден');
-    }
+      routes.id = ?;`, [routeId]
+  );
 
     const [images] = await connection.query(`
       SELECT 
@@ -121,16 +118,35 @@ app.get('/route', async (request, response) => {
       [routeId]
     );
 
-    stopsWithRoute.forEach(data => {
-      data.images = images;
-    })
+    if (stopsWithRoute.length === 0) {
+      const routeQuery = await connection.query(`
+        SELECT r.*
+        FROM routes r
+        LEFT JOIN stops s ON r.id = s.route_id
+        WHERE r.id = ${routeId} AND s.id IS NULL;`
+      );
 
-    const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute)[0];
+      const route =  routeQuery[0][0];
+      route.images = images;
 
-    response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
+      if (!route) {
+        response.status(404).send('Маршрут не найден');
+      }
+
+      return response.status(201).json({message: 'Маршрут успешно добавлен', route});
+    } else {
+      stopsWithRoute.forEach(data => {
+        data.images = images;
+      });
+
+      const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute)[0];
+
+      return response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
+    }
+
   } catch (err) {
     console.error('Ошибка выполнения запроса:', err);
-    response.status(500).send('Ошибка сервера');
+    return response.status(500).send('Ошибка сервера');
   } finally {
     if (connection) {
       connection.release();
@@ -263,14 +279,14 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
 
     const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute)[0];
 
-    response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
+    return response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
 
   } catch (error) {
     await connection.rollback();
 
     console.error(error);
 
-    response.status(500).json({ error: 'Ошибка сервера при добавлении маршрута и остановок' });
+    return response.status(500).json({ error: 'Ошибка сервера при добавлении маршрута и остановок' });
   } finally {
     if (connection) {
       connection.release();
