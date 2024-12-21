@@ -294,6 +294,59 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
   }
 });
 
+app.put("/edit-route", upload.array('newImages', 5), async function (request, response) {
+  if(!request.body) {
+    return response.sendStatus(400);
+  }
+
+  const {userId, routeData: routeDataRaw} = request.body;
+  const routeData = JSON.parse(routeDataRaw);
+  const imagesData = request.files ? request.files.map(file => [file.buffer, file.originalname]) : [];
+
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+
+    await connection.beginTransaction();
+
+    let changes = [];
+    let vals = [];
+
+    ['name', 'description', 'price', 'currency'].forEach((key) => {
+      if(routeData[key] !== undefined) {
+        changes.push(`${key} = ?`);
+        vals.push(routeData[key]);
+      }
+    });
+
+    const [routeResult] = await connection.query(
+      `UPDATE routes
+       SET ${changes.join(', ')}
+       WHERE id = ?`,
+      [...vals, routeData.id]
+    );
+
+    console.log('routeResult.affectedRows', routeResult.affectedRows);
+
+    await connection.commit();
+
+    return response.status(201).json({message: 'Изменения внесены в маршрут'})
+    // return response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
+
+  } catch (error) {
+    await connection.rollback();
+
+    console.error(error);
+
+    return response.status(500).json({ error: 'Ошибка сервера при добавлении маршрута и остановок' });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Сервер запущен на http://localhost:${PORT}`);
 });
