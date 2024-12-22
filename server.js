@@ -8,6 +8,7 @@ const {formattedRouteWithStops} = require('./routes');
 const urlencodedParser = express.urlencoded({extended: false});
 const multer = require('multer');
 const mime = require('mime-types');
+const {addImages, removeRouteImages, removeImages} = require('./images');
 
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json());
@@ -213,24 +214,7 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
 
     const routeId = routeResult.insertId;
 
-    const imagesPromises = imagesData.map(([imageBuffer, imageName]) => {
-      return connection.query(
-        'INSERT INTO images (title, image_blob) VALUES (?, ?)',
-        [imageName, imageBuffer]
-      );
-    });
-
-    const imagesResult = await Promise.all(imagesPromises);
-
-    const imagesRouteRelationsPromises = imagesResult.map((imageResult) => {
-      const imageId = imageResult[0].insertId;
-      return connection.query(
-        'INSERT INTO route_images (route_id, image_id) VALUES (?, ?)',
-        [routeId, imageId]
-      );
-    });
-
-    await Promise.all(imagesRouteRelationsPromises);
+    await addImages({images: imagesData, db: connection, routeId});
 
     const stopPromises = routeData.stops.map(stop => {
       const { title, description, position } = stop;
@@ -264,18 +248,6 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
         routes.id = ?`,
       [routeId]
     );
-
-    const [images] = await connection.query(`
-      SELECT route_images.image_id AS id
-      FROM route_images
-      WHERE
-        route_images.route_id = ?`,
-      [routeId]
-    );
-
-    stopsWithRoute.forEach(data => {
-      data.images = images;
-    })
 
     const routesWithStopsFormatted = formattedRouteWithStops(stopsWithRoute)[0];
 
@@ -327,36 +299,14 @@ app.put("/edit-route", upload.array('newImages', 5), async function (request, re
 
     await connection.query(updateRouteSql, [...vals, routeData.id]);
 
-    const deleteRouteImagesSql =
-      `DELETE FROM route_images
-       WHERE route_id = ? AND image_id NOT IN (?);`
-    ;
-
     const remainingImageIds = routeData.images?.map(({id}) => id) || [];
-    const deleteUnusedImagesSql =
-      `DELETE FROM images
-       WHERE id NOT IN (SELECT image_id FROM route_images);`
-    ;
+
     if (remainingImageIds.length) {
-      await connection.query(deleteRouteImagesSql, [routeData.id, remainingImageIds]);
-      await connection.query(deleteUnusedImagesSql);
+      await removeRouteImages({imageIds: remainingImageIds, routeId: routeData.id, db: connection});
+      await removeImages({db: connection});
     }
 
-    const insertImageSql =
-      `INSERT INTO images (title, image_blob)
-        VALUES (?, ?);`
-    ;
-    const insertRouteImageSql =
-      `INSERT INTO route_images (route_id, image_id)
-        VALUES (?, ?);`
-    ;
-
-    for (let i = 0; i < imagesData.length; i += 1) {
-      const [result] = await connection.query(insertImageSql, [imagesData[i][1], imagesData[i][0]]);
-      const imageId = result.insertId;
-
-      await connection.query(insertRouteImageSql, [routeData.id, imageId]);
-    }
+    await addImages({images: imagesData, db: connection, routeId: routeData.id});
 
     await connection.commit();
 
