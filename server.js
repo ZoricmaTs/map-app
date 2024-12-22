@@ -307,7 +307,6 @@ app.put("/edit-route", upload.array('newImages', 5), async function (request, re
 
   try {
     connection = await pool.getConnection();
-
     await connection.beginTransaction();
 
     let changes = [];
@@ -320,19 +319,48 @@ app.put("/edit-route", upload.array('newImages', 5), async function (request, re
       }
     });
 
-    const [routeResult] = await connection.query(
+    const updateRouteSql =
       `UPDATE routes
        SET ${changes.join(', ')}
-       WHERE id = ?`,
-      [...vals, routeData.id]
-    );
+       WHERE id = ?;`
+    ;
 
-    console.log('routeResult.affectedRows', routeResult.affectedRows);
+    await connection.query(updateRouteSql, [...vals, routeData.id]);
+
+    const deleteRouteImagesSql =
+      `DELETE FROM route_images
+       WHERE route_id = ? AND image_id NOT IN (?);`
+    ;
+
+    const remainingImageIds = routeData.images?.map(({id}) => id) || [];
+    const deleteUnusedImagesSql =
+      `DELETE FROM images
+       WHERE id NOT IN (SELECT image_id FROM route_images);`
+    ;
+    if (remainingImageIds.length) {
+      await connection.query(deleteRouteImagesSql, [routeData.id, remainingImageIds]);
+      await connection.query(deleteUnusedImagesSql);
+    }
+
+    const insertImageSql =
+      `INSERT INTO images (title, image_blob)
+        VALUES (?, ?);`
+    ;
+    const insertRouteImageSql =
+      `INSERT INTO route_images (route_id, image_id)
+        VALUES (?, ?);`
+    ;
+
+    for (let i = 0; i < imagesData.length; i += 1) {
+      const [result] = await connection.query(insertImageSql, [imagesData[i][1], imagesData[i][0]]);
+      const imageId = result.insertId;
+
+      await connection.query(insertRouteImageSql, [routeData.id, imageId]);
+    }
 
     await connection.commit();
 
     return response.status(201).json({message: 'Изменения внесены в маршрут'})
-    // return response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', route: routesWithStopsFormatted });
 
   } catch (error) {
     await connection.rollback();
