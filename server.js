@@ -9,6 +9,7 @@ const urlencodedParser = express.urlencoded({extended: false});
 const multer = require('multer');
 const mime = require('mime-types');
 const {addImages, removeRouteImages, removeImages} = require('./images');
+const {removeStops, filterStopsForDeletion, updateStops, addStops} = require('./stop');
 
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json());
@@ -273,6 +274,7 @@ app.put("/edit-route", upload.array('newImages', 5), async function (request, re
 
   const {userId, routeData: routeDataRaw} = request.body;
   const routeData = JSON.parse(routeDataRaw);
+
   const imagesData = request.files ? request.files.map(file => [file.buffer, file.originalname]) : [];
 
   let connection;
@@ -307,6 +309,21 @@ app.put("/edit-route", upload.array('newImages', 5), async function (request, re
     }
 
     await addImages({images: imagesData, db: connection, routeId: routeData.id});
+
+    const [existingStops] = await connection.query('SELECT * FROM stops WHERE route_id = ?', [routeData.id]);
+    const stopsToDelete = filterStopsForDeletion(existingStops, routeData.stops);
+
+    if (stopsToDelete.length) {
+      await removeStops({db: connection, stopsToDelete});
+    }
+
+    if (routeData.stops) {
+      await updateStops({db: connection, stopsToUpdate: routeData.stops});
+    }
+
+    if (routeData.newStops) {
+      await addStops({db: connection, stops: routeData.newStops, routeId: routeData.id});
+    }
 
     await connection.commit();
 
