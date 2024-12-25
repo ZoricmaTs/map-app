@@ -19,7 +19,7 @@ function addImages({images, routeId, db}) {
 function removeRouteImages({imageIds, routeId, db}) {
   const deleteRouteImagesSql =
     `DELETE FROM route_images
-       WHERE route_id = ? AND image_id NOT IN (?);`
+       WHERE route_id = ? AND image_id IN (?);`
   ;
 
   return db.query(deleteRouteImagesSql, [routeId, imageIds]);
@@ -34,4 +34,21 @@ function removeImages({db}) {
   return db.query(deleteUnusedImagesSql);
 }
 
-module.exports = {addImages, removeRouteImages, removeImages};
+async function getImagesByRouteId({routeId, db}) {
+  const query = `
+      SELECT i.id
+      FROM route_images ri
+               JOIN images i ON ri.image_id = i.id
+      WHERE ri.route_id = ?;
+  `;
+
+  try {
+    const [results] = await db.query(query, [routeId]);
+    return results.map(row => row.id);
+  } catch (error) {
+    console.error('Ошибка при получении ID картинок:', error);
+    throw error;
+  }
+}
+
+module.exports = {addImages, getImagesByRouteId, removeRouteImages, removeImages};

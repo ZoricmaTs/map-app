@@ -25,4 +25,30 @@ function formattedRouteWithStops(stops) {
   return Object.values(route);
 }
 
-module.exports = {formattedRouteWithStops};
+function updateRoute({db, routeData}) {
+  let changes = [];
+  let vals = [];
+
+  ['name', 'description', 'price', 'currency'].forEach((key) => {
+    if(routeData[key] !== undefined) {
+      changes.push(`${key} = ?`);
+      vals.push(routeData[key]);
+    }
+  });
+
+  const updateRouteSql =
+    `UPDATE routes
+       SET ${changes.join(', ')}
+       WHERE id = ?;`
+  ;
+
+  return db.query(updateRouteSql, [...vals, routeData.id]);
+}
+
+function deleteRoute({db, routeId}) {
+  const deleteRouteSql = `DELETE FROM routes WHERE id = ?;`
+
+  return db.query(deleteRouteSql, [routeId]);
+}
+
+module.exports = {deleteRoute, formattedRouteWithStops, updateRoute};

@@ -4,12 +4,12 @@ const PORT = 3030;
 const mysql = require('mysql2');
 const mysqlPromise = require('mysql2/promise');
 const cors = require('cors');
-const {formattedRouteWithStops} = require('./routes');
+const {formattedRouteWithStops, updateRoute, deleteRoute} = require('./routes');
 const urlencodedParser = express.urlencoded({extended: false});
 const multer = require('multer');
 const mime = require('mime-types');
-const {addImages, removeRouteImages, removeImages} = require('./images');
-const {removeStops, filterStopsForDeletion, updateStops, addStops} = require('./stop');
+const {addImages, removeRouteImages, removeImages, getImagesByRouteId} = require('./images');
+const {removeStops, filterStopsForDeletion, updateStops, addStops, removeAllStops} = require('./stop');
 
 app.use(express.urlencoded({ extended: true }))
 app.use(express.json());
@@ -283,23 +283,7 @@ app.put("/edit-route", upload.array('newImages', 5), async function (request, re
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    let changes = [];
-    let vals = [];
-
-    ['name', 'description', 'price', 'currency'].forEach((key) => {
-      if(routeData[key] !== undefined) {
-        changes.push(`${key} = ?`);
-        vals.push(routeData[key]);
-      }
-    });
-
-    const updateRouteSql =
-      `UPDATE routes
-       SET ${changes.join(', ')}
-       WHERE id = ?;`
-    ;
-
-    await connection.query(updateRouteSql, [...vals, routeData.id]);
+    await updateRoute({db: connection, routeData});
 
     const remainingImageIds = routeData.images?.map(({id}) => id) || [];
 
@@ -340,6 +324,43 @@ app.put("/edit-route", upload.array('newImages', 5), async function (request, re
       connection.release();
     }
   }
+});
+
+app.delete('/delete-route/', async (request, response) => {
+  const routeId = request.query.id;
+
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    await removeAllStops({db: connection, routeId});
+
+    const imageIds = await getImagesByRouteId({db: connection, routeId});
+
+    if (imageIds.length) {
+      removeRouteImages({imageIds, routeId, db: connection});
+    }
+
+    await deleteRoute({db: connection, routeId});
+
+    await connection.commit();
+
+    return response.status(201).json({message: 'Маршрут удален'});
+  } catch (error) {
+    await connection.rollback();
+
+    console.error(error);
+
+    return response.status(500).json({ error: 'Ошибка сервера при удалении маршрута' });
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+
+  console.log('request', routeId);
 });
 
 app.listen(PORT, () => {

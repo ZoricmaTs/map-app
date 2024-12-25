@@ -7,6 +7,15 @@ function removeStops({db, stopsToDelete}) {
   return db.query(deleteStopsSql, [stopsToDelete]);
 }
 
+function removeAllStops({db, routeId}) {
+  const deleteStopsSql =
+    `DELETE FROM stops
+     WHERE route_id IN (?);`
+  ;
+
+  return db.query(deleteStopsSql, [routeId]);
+}
+
 function filterStopsForDeletion(existingStops, updatedStops) {
   const updatedStopIds = updatedStops.map(stop => stop.id).filter(id => id);
 
@@ -42,4 +51,4 @@ function addStops({db, stops, routeId}) {
   return Promise.all(stopPromises);
 }
 
-module.exports = {addStops, filterStopsForDeletion, removeStops, updateStops};
+module.exports = {addStops, filterStopsForDeletion, removeStops, removeAllStops, updateStops};
