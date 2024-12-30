@@ -129,7 +129,9 @@ app.get('/route', async (request, response) => {
       );
 
       const route =  routeQuery[0][0];
-      route.images = images;
+      if (images.length) {
+        route.images = images;
+      }
 
       if (!route) {
         response.status(404).send('Маршрут не найден');
