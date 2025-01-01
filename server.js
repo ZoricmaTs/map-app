@@ -361,8 +361,6 @@ app.delete('/delete-route/', async (request, response) => {
       connection.release();
     }
   }
-
-  console.log('request', routeId);
 });
 
 app.listen(PORT, () => {
