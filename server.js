@@ -96,6 +96,7 @@ app.get('/route', async (request, response) => {
       routes.id AS route_id,
       routes.name AS route_name,
       routes.description AS route_description,
+      routes.last_update AS route_last_update,
       routes.price AS route_price,
       routes.currency AS route_currency,
       stops.id AS stop_id,
@@ -158,7 +159,7 @@ app.get('/route', async (request, response) => {
   }
 });
 
-app.get('/routes', (request, response) => {
+app.get('/user-routes', (request, response) => {
   const ownerId = request.query.user_id;
 
   const query = `
@@ -166,6 +167,7 @@ app.get('/routes', (request, response) => {
       routes.id AS route_id,
       routes.name AS route_name,
       routes.description AS route_description,
+      routes.last_update AS route_last_update,
       routes.price AS route_price,
       routes.currency AS route_currency,
       stops.id AS stop_id,
@@ -187,6 +189,21 @@ app.get('/routes', (request, response) => {
     const routesWithStops = formattedRouteWithStops(results);
 
     response.json(routesWithStops);
+  });
+});
+
+app.get('/routes', (request, response) => {
+  const query = `
+    SELECT * FROM routes
+    ORDER BY name ASC;`
+  ;
+
+  db.query(query, (err, results) => {
+    if (err) {
+      return response.status(500).send(`Ошибка при получении данных ${err}`);
+    }
+
+    return response.json(results);
   });
 });
 
