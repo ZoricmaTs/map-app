@@ -4,7 +4,7 @@ const PORT = 3030;
 const mysql = require('mysql2');
 const mysqlPromise = require('mysql2/promise');
 const cors = require('cors');
-const {formattedRouteWithStops, updateRoute, deleteRoute} = require('./routes');
+const {formattedRouteWithStops, updateRoute, deleteRoute, getRoutesWithUser} = require('./routes');
 const urlencodedParser = express.urlencoded({extended: false});
 const multer = require('multer');
 const mime = require('mime-types');
@@ -192,19 +192,33 @@ app.get('/user-routes', (request, response) => {
   });
 });
 
-app.get('/routes', (request, response) => {
-  const query = `
-    SELECT * FROM routes
-    ORDER BY name ASC;`
-  ;
+app.get('/routes', async (request, response) => {
+  let connection;
 
-  db.query(query, (err, results) => {
-    if (err) {
-      return response.status(500).send(`Ошибка при получении данных ${err}`);
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [routes] = await getRoutesWithUser({db: connection});
+
+    if (!routes.length) {
+      return response.status(500).json({ message: 'Маршруты не найдены'});
     }
 
-    return response.json(results);
-  });
+    for (let i = 0; i < routes.length; i += 1) {
+      const imageIds = await getImagesByRouteId({db: connection, routeId: routes[i].id});
+      routes[i].images = imageIds;
+    }
+
+    return response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', routes});
+  } catch (error) {
+    console.error('Ошибка выполнения запроса:', error);
+    return response.status(500).send('Ошибка сервера');
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
 });
 
 app.post("/add-route", upload.array('images', 5), async function (request, response) {

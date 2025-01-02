@@ -51,4 +51,29 @@ function deleteRoute({db, routeId}) {
   return db.query(deleteRouteSql, [routeId]);
 }
 
-module.exports = {deleteRoute, formattedRouteWithStops, updateRoute};
+async function getRoutesWithUser({db}) {
+  const query = `
+    SELECT
+      routes.id AS id,
+      routes.name AS name,
+      routes.description AS description,
+      routes.price AS price,
+      routes.currency AS currency,
+      routes.last_update,
+      users.id AS user_id,
+      users.name,
+      users.age
+    FROM
+      routes
+        JOIN
+      users
+        ON
+      routes.user_id = users.id
+    ORDER BY
+      routes.last_update DESC;`
+  ;
+
+  return await db.query(query);
+}
+
+module.exports = {deleteRoute, getRoutesWithUser, formattedRouteWithStops, updateRoute};
