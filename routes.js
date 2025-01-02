@@ -60,15 +60,19 @@ async function getRoutesWithUser({db}) {
       routes.price AS price,
       routes.currency AS currency,
       routes.last_update,
-      users.id AS user_id,
-      users.name,
-      users.age
+      JSON_OBJECT(
+        'id', users.id,
+        'name', users.name,
+        'age', users.age
+      ) AS user
     FROM
       routes
-        JOIN
+    JOIN
       users
-        ON
+    ON
       routes.user_id = users.id
+    GROUP BY
+      routes.id
     ORDER BY
       routes.last_update DESC;`
   ;
