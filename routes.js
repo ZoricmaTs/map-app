@@ -7,7 +7,6 @@ function formattedRouteWithStops(stops) {
         name: row.route_name,
         description: row.route_description,
         price: row.route_price,
-        currency: row.route_currency,
         images: row.images,
         stops: [],
       };
@@ -29,7 +28,7 @@ function updateRoute({db, routeData}) {
   let changes = [];
   let vals = [];
 
-  ['name', 'description', 'price', 'currency'].forEach((key) => {
+  ['name', 'description', 'price'].forEach((key) => {
     if(routeData[key] !== undefined) {
       changes.push(`${key} = ?`);
       vals.push(routeData[key]);
@@ -51,14 +50,15 @@ function deleteRoute({db, routeId}) {
   return db.query(deleteRouteSql, [routeId]);
 }
 
-async function getRoutesWithUser({db}) {
+async function getRoutesWithUser({db, sort}) {
+  const [sortedType, sortedValue] = sort.split('_');
+
   const query = `
     SELECT
       routes.id AS id,
       routes.name AS name,
       routes.description AS description,
       routes.price AS price,
-      routes.currency AS currency,
       routes.last_update,
       JSON_OBJECT(
         'id', users.id,
@@ -74,7 +74,7 @@ async function getRoutesWithUser({db}) {
     GROUP BY
       routes.id
     ORDER BY
-      routes.last_update DESC;`
+        ${sortedType} ${sortedValue};`
   ;
 
   return await db.query(query);

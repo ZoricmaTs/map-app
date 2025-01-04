@@ -98,7 +98,6 @@ app.get('/route', async (request, response) => {
       routes.description AS route_description,
       routes.last_update AS route_last_update,
       routes.price AS route_price,
-      routes.currency AS route_currency,
       stops.id AS stop_id,
       stops.title AS stop_title,
       stops.description AS stop_description,
@@ -169,7 +168,6 @@ app.get('/user-routes', (request, response) => {
       routes.description AS route_description,
       routes.last_update AS route_last_update,
       routes.price AS route_price,
-      routes.currency AS route_currency,
       stops.id AS stop_id,
       stops.title AS stop_title,
       stops.description AS stop_description,
@@ -194,12 +192,13 @@ app.get('/user-routes', (request, response) => {
 
 app.get('/routes', async (request, response) => {
   let connection;
+  const { sort, filter, page } = request.query;
 
   try {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    const [routes] = await getRoutesWithUser({db: connection});
+    const [routes] = await getRoutesWithUser({db: connection, sort});
 
     if (!routes.length) {
       return response.status(500).json({ message: 'Маршруты не найдены'});
@@ -216,7 +215,7 @@ app.get('/routes', async (request, response) => {
       }
     }
 
-    return response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', routes});
+    return response.status(201).json({ message: 'Маршруты найдены', routes});
   } catch (error) {
     console.error('Ошибка выполнения запроса:', error);
     return response.status(500).send('Ошибка сервера');
@@ -248,8 +247,8 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
     await connection.beginTransaction();
 
     const [routeResult] = await connection.query(
-      'INSERT INTO routes (name, description, price, currency, user_id) VALUES (?, ?, ?, ?, ?)',
-      [routeData.name, routeData.description, routeData.price, routeData.currency, userId]
+      'INSERT INTO routes (name, description, price, user_id) VALUES (?, ?, ?, ?)',
+      [routeData.name, routeData.description, routeData.price, userId]
     );
 
     const routeId = routeResult.insertId;
@@ -274,7 +273,6 @@ app.post("/add-route", upload.array('images', 5), async function (request, respo
         routes.id AS route_id,
         routes.name AS route_name,
         routes.price AS route_price,
-        routes.currency AS route_currency,
         routes.description AS route_description,
         stops.id AS stop_id,
         stops.title AS stop_title,
