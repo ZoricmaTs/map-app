@@ -207,7 +207,13 @@ app.get('/routes', async (request, response) => {
 
     for (let i = 0; i < routes.length; i += 1) {
       const imageIds = await getImagesByRouteId({db: connection, routeId: routes[i].id});
-      routes[i].images = imageIds;
+      if (imageIds.length) {
+        for (let j = 0; j < imageIds.length; j += 1) {
+          imageIds[j] = {id: imageIds[j]}
+        }
+
+        routes[i].images = imageIds;
+      }
     }
 
     return response.status(201).json({ message: 'Маршрут и остановки добавлены успешно', routes});
