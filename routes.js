@@ -51,7 +51,7 @@ function deleteRoute({db, routeId}) {
 }
 
 async function getRoutesWithUser({db, sort}) {
-  const [sortedType, sortedValue] = sort.split('_');
+  const [sortedType, sortedValue] = sort.split('-');
 
   const query = `
     SELECT
