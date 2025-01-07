@@ -192,13 +192,14 @@ app.get('/user-routes', (request, response) => {
 
 app.get('/routes', async (request, response) => {
   let connection;
-  const { sort, filter, page } = request.query;
+  const { sort, filter, page, limit } = request.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
 
   try {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    const [routes] = await getRoutesWithUser({db: connection, sort});
+    const [routes] = await getRoutesWithUser({db: connection, sort, offset, limit: parseInt(limit)});
 
     if (!routes.length) {
       return response.status(500).json({ message: 'Маршруты не найдены'});
@@ -215,7 +216,10 @@ app.get('/routes', async (request, response) => {
       }
     }
 
-    return response.status(201).json({ message: 'Маршруты найдены', routes});
+    const [totalCountResult] = await connection.execute(`SELECT COUNT(*) AS totalRoutes FROM routes`);
+    const totalRoutes = totalCountResult[0].totalRoutes;
+
+    return response.status(201).json({ message: 'Маршруты найдены', routes, total: totalRoutes});
   } catch (error) {
     console.error('Ошибка выполнения запроса:', error);
     return response.status(500).send('Ошибка сервера');

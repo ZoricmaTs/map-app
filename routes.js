@@ -50,7 +50,7 @@ function deleteRoute({db, routeId}) {
   return db.query(deleteRouteSql, [routeId]);
 }
 
-async function getRoutesWithUser({db, sort}) {
+async function getRoutesWithUser({db, sort, offset, limit}) {
   const [sortedType, sortedValue] = sort.split('-');
 
   const query = `
@@ -74,10 +74,11 @@ async function getRoutesWithUser({db, sort}) {
     GROUP BY
       routes.id
     ORDER BY
-        ${sortedType} ${sortedValue};`
+      ${sortedType} ${sortedValue}
+    LIMIT ? OFFSET ?;`
   ;
 
-  return await db.query(query);
+  return await db.query(query, [limit, offset]);
 }
 
 module.exports = {deleteRoute, getRoutesWithUser, formattedRouteWithStops, updateRoute};
