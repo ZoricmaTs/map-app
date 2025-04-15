@@ -59,6 +59,67 @@ app.get('/users', (request, response) => {
   });
 });
 
+app.get('/user/:id', (request, response) => {
+  const query = `
+    SELECT 
+      users.id AS id,
+      users.name AS name,
+      users.age AS age,
+      users.role AS role,
+      users.login AS login
+    FROM users
+    WHERE users.id = ${request.params.id}`;
+
+  db.query(query, (err, results) => {
+    if (err) {
+      return response.status(500).send(`Ошибка при получении данных ${err}`);
+    }
+
+    if (!results.length) {
+      return response.status(404).send('Не найдено');
+    }
+    console.log('results[0]', results[0])
+
+    return response.status(200).json(results[0]);
+  })
+});
+
+app.post('/login', async (request, response) => {
+  const {login, password} = request.body;
+
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    if (!login || !password) {
+      return response.status(400).send('Login and password required');
+    }
+
+    const [rows] = await connection.execute('SELECT * FROM users WHERE login = ?', [login]);
+    const user = rows[0];
+
+    if (!user) {
+      return response.status(401).json({message: 'Invalid login'});
+    }
+
+    if (user.password !== password) {
+      return response.status(401).json({message: 'Invalid password'});
+    }
+
+    response.status(200).json({message: 'Login successful', userId: user.id});
+  } catch (error) {
+    console.error('Ошибка выполнения запроса:', error);
+    return response.status(500).send('Ошибка сервера');
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+
 app.get('/images/:id', (request, response) => {
   const query = `
     SELECT 

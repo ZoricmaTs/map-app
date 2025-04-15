@@ -63,7 +63,9 @@ async function getRoutesWithUser({db, sort, offset, limit}) {
       JSON_OBJECT(
         'id', users.id,
         'name', users.name,
-        'age', users.age
+        'age', users.age,
+        'role', users.role,
+        'login', users.login
       ) AS user
     FROM
       routes
