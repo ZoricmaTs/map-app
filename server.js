@@ -72,13 +72,12 @@ app.get('/user/:id', (request, response) => {
 
   db.query(query, (err, results) => {
     if (err) {
-      return response.status(500).send(`Ошибка при получении данных ${err}`);
+      return response.status(500).json({message: `Ошибка при получении данных ${err}`});
     }
 
     if (!results.length) {
-      return response.status(404).send('Не найдено');
+      return response.status(404).json('Не найдено');
     }
-    console.log('results[0]', results[0])
 
     return response.status(200).json(results[0]);
   })
@@ -86,7 +85,6 @@ app.get('/user/:id', (request, response) => {
 
 app.post('/login', async (request, response) => {
   const {login, password} = request.body;
-
   let connection;
 
   try {
@@ -94,24 +92,24 @@ app.post('/login', async (request, response) => {
     await connection.beginTransaction();
 
     if (!login || !password) {
-      return response.status(400).send('Login and password required');
+      return response.status(400).json({message: 'Логин и пароль обязательны', text: 'required'});
     }
 
     const [rows] = await connection.execute('SELECT * FROM users WHERE login = ?', [login]);
     const user = rows[0];
 
     if (!user) {
-      return response.status(401).json({message: 'Invalid login'});
+      return response.status(401).json({message: 'Invalid login', text: 'login'});
     }
 
     if (user.password !== password) {
-      return response.status(401).json({message: 'Invalid password'});
+      console.log('user.password !== password')
+      return response.status(401).json({message: 'Invalid password', text: 'password'});
     }
 
-    response.status(200).json({message: 'Login successful', userId: user.id});
+    return response.status(200).json({message: 'Успешный вход', userId: user.id, text: 'login.success'});
   } catch (error) {
-    console.error('Ошибка выполнения запроса:', error);
-    return response.status(500).send('Ошибка сервера');
+    return response.status(500).send({message: 'Ошибка сервера'});
   } finally {
     if (connection) {
       connection.release();
