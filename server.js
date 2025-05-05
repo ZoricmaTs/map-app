@@ -64,7 +64,7 @@ app.get('/user/:id', (request, response) => {
     SELECT 
       users.id AS id,
       users.name AS name,
-      users.age AS age,
+      users.birth_day AS birth_day,
       users.role AS role,
       users.login AS login
     FROM users
