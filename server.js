@@ -103,12 +103,51 @@ app.post('/login', async (request, response) => {
     }
 
     if (user.password !== password) {
-      console.log('user.password !== password')
       return response.status(401).json({message: 'Invalid password', text: 'password'});
     }
 
     return response.status(200).json({message: 'Успешный вход', userId: user.id, text: 'login.success'});
   } catch (error) {
+    return response.status(500).send({message: 'Ошибка сервера'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
+
+app.post('/register', async (request, response) => {
+  const {login, password, name,role} = request.body;
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    if (!login || !password) {
+      return response.status(400).json({message: 'Логин и пароль обязательны', text: 'required'});
+    }
+
+    const [rows] = await connection.execute('SELECT * FROM users WHERE login = ?', [login]);
+    const user = rows[0];
+
+    if (user) {
+      return response.status(401).json({message: 'Invalid login', text: 'login'});
+    }
+
+    const [userResult] = await connection.query(
+      'INSERT INTO users (login, name, password, role) VALUES (?, ?, ?, ?)',
+      [login, name, password, role]
+    );
+
+    if (connection) {
+      await connection.commit();
+      connection.release();
+    }
+
+    return response.status(200).json({message: 'Успешный вход', userId: userResult.insertId, text: 'login.success'});
+  } catch (error) {
+    console.log('error', error);
     return response.status(500).send({message: 'Ошибка сервера'});
   } finally {
     if (connection) {
