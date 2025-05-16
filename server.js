@@ -156,6 +156,44 @@ app.post('/register', async (request, response) => {
   }
 });
 
+app.post('/edit-user', async (request, response) => {
+  const {id, login, name, role, birth_day} = request.body;
+  const birthDay = new Date(birth_day).toISOString().split('T')[0];
+
+  let connection;
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [rowsUser] = await connection.execute('SELECT * FROM users WHERE login = ?', [login]);
+    const loginUser = rowsUser[0];
+
+    if (loginUser) {
+      return response.status(409).json({message: 'Такой логин уже существует', text: 'login.unique'});
+    }
+
+    const [rows] = await connection.execute('SELECT * FROM users WHERE id = ?', [id]);
+    const user = rows[0];
+
+    const updateUserSql = `UPDATE users SET login = ?, name = ?, role = ?, birth_day = ? WHERE id = ?;`;
+
+    await connection.query(updateUserSql, [login, name, role, birthDay, id]);
+
+    if (connection) {
+      await connection.commit();
+      connection.release();
+    }
+
+    return response.status(200).json({message: 'Успешный вход', userId: user.insertId, text: 'login.success'});
+  } catch (error) {
+    return response.status(500).send({message: 'Ошибка сервера'});
+  } finally {
+    if (connection) {
+      connection.release();
+    }
+  }
+});
 
 app.get('/images/:id', (request, response) => {
   const query = `
