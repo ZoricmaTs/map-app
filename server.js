@@ -168,13 +168,12 @@ app.post('/edit-user', async (request, response) => {
 
     const [rowsUser] = await connection.execute('SELECT * FROM users WHERE login = ?', [login]);
     const loginUser = rowsUser[0];
-
-    if (loginUser) {
-      return response.status(409).json({message: 'Такой логин уже существует', text: 'login.unique'});
-    }
-
     const [rows] = await connection.execute('SELECT * FROM users WHERE id = ?', [id]);
     const user = rows[0];
+
+    if (loginUser && user.login !== login) {
+      return response.status(409).json({message: 'Такой логин уже существует', text: 'login.unique'});
+    }
 
     const updateUserSql = `UPDATE users SET login = ?, name = ?, role = ?, birth_day = ? WHERE id = ?;`;
 
@@ -185,7 +184,7 @@ app.post('/edit-user', async (request, response) => {
       connection.release();
     }
 
-    return response.status(200).json({message: 'Успешный вход', userId: user.insertId, text: 'login.success'});
+    return response.status(200).json({message: 'Изменения успешно внесены', text: 'success.edit-user'});
   } catch (error) {
     return response.status(500).send({message: 'Ошибка сервера'});
   } finally {
